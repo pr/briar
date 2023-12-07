@@ -1,0 +1,87 @@
+import cv2
+import math
+
+from enum import Enum
+
+
+player_with_ball_team = "warriors"
+opponent_team = "lakers"
+
+
+class PlayerState(Enum):
+    WIDE_OPEN = 0
+    MODERATELY_GUARDED = 1
+    WELL_GUARDED = 2
+    TRIPLE_TEAMED = 3
+    QUADRUPLE_TEAMED = 4
+    QUINTUPLE_TEAMED = 5
+
+
+class NBAStill:
+    def __init__(self, still_path):
+        self.still_path = still_path
+        self.players = nba_outputs["instances"]
+        self.class_catalog = metadata_catalog.get(cfg_nba.DATASETS.TRAIN).thing_classes
+        self.player_with_ball = None
+        self.opponent_players = []
+        self.player_with_ball_team = "warriors"
+        self.opponent_team = "lakers"
+        self.proximity_threshold = 100
+
+    def get_players_from_image(self):
+        return nba_predictor(cv2.imread(self.still_path))
+
+    def get_number_of_close_players(self):
+        for index, coordinates in enumerate(self.players.pred_boxes):
+            class_index = self.players.pred_classes[index]
+            class_name = self.class_catalog[class_index]
+
+            if class_name == f"{self.opponent_team}_player":
+                self.opponent_players.append(self.players.pred_boxes[index].get_centers())
+
+            if class_name == f"{self.player_with_ball_team}_player_with_ball":
+                self.player_with_ball = self.players.pred_boxes[index].get_centers()
+
+        player_with_ball_numpy = self.player_with_ball.cpu().numpy()[0]
+        player_with_ball_x = player_with_ball_numpy[0]
+        player_with_ball_y = player_with_ball_numpy[1]
+
+        close_opponent_players = 0
+
+        for opponent_player in self.opponent_players:
+            opponent_player_numpy = opponent_player.cpu().numpy()[0]
+            opponent_player_x = opponent_player_numpy[0]
+            opponent_player_y = opponent_player_numpy[1]
+
+            distance_to_player_with_the_ball = math.dist(
+            [player_with_ball_x, player_with_ball_y],
+            [opponent_player_x, opponent_player_y]
+            )
+
+            if distance_to_player_with_the_ball < self.proximity_threshold:
+                close_opponent_players += 1
+
+        return close_opponent_players
+
+    def get_player_state(self):
+        """
+        Examples
+        --------
+        >>> # return the state
+        >>> def execute_command(still_path):
+        >>>     nba_still = NBAStill(still_path)
+        >>>     state = nba_still.get_state()
+        >>>     if state == OpenState.WIDE_OPEN:
+        >>>        return "shoot"
+        >>>     else:
+        >>>        return "pass"
+        """
+        return PlayerState(self.get_number_of_close_players())
+
+Write a function using Python and the NBAStill class (above) that could be executed to provide an answer to the query.
+
+Consider the following guidelines:
+- Use base Python (comparison, sorting) for basic logical operations, left/right/up/down, math, etc.
+- Use the state of the game to return an action
+
+Query: INSERT_QUERY_HERE
